@@ -127,7 +127,6 @@
                     <p class="text-slate-500 text-sm">Overview pengeluaran BDV real-time.</p>
                 </div>
                 
-                <!-- NEW: Filter Component -->
                 <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
                     <label for="dashboard-filter-month" class="text-sm font-medium text-slate-600">Periode:</label>
                     <input type="month" id="dashboard-filter-month" onchange="updateDashboard()" class="text-sm border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-slate-700 border px-2 py-1">
@@ -470,10 +469,13 @@
                             <div class="text-center font-bold">:</div>
                             <div class="border-b border-black italic bg-white px-2" id="print-copy-terbilang"></div>
 
-                            <!-- Row 3 -->
+                            <!-- Row 3 - UPDATED to Show ALL Items -->
                             <div class="font-bold">Guna Membayar</div>
                             <div class="text-center font-bold">:</div>
-                            <div class="border-b border-black" id="print-copy-desc"></div>
+                            <!-- Dynamic Content Here -->
+                            <div class="border-b border-black pb-2" id="print-copy-desc-container">
+                                <!-- Populated by JS -->
+                            </div>
 
                             <!-- Row 4 -->
                             <div class="font-bold text-lg mt-2">TOTAL</div>
@@ -605,6 +607,13 @@
 
         function initForm() {
             document.getElementById('input-date').valueAsDate = new Date();
+            
+            // Set Default Month Filter
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            document.getElementById('dashboard-filter-month').value = `${yyyy}-${mm}`;
+
             currentLineItems = [];
             addLineItem();
         }
@@ -672,9 +681,11 @@
                 details: currentLineItems.map(item => ({...item}))
             };
 
+            // 1. Save Locally
             bdvDatabase.push(newRecord);
 
-            if (GOOGLE_SCRIPT_URL.includes('http')) {
+            // 2. Send to Google Sheets
+            if (GOOGLE_SCRIPT_URL.includes('/exec')) {
                 document.getElementById('loading-overlay').classList.remove('hidden');
                 
                 fetch(GOOGLE_SCRIPT_URL, {
@@ -684,7 +695,6 @@
                     body: JSON.stringify(newRecord)
                 })
                 .then(response => {
-                    console.log("Sent to Sheets");
                     document.getElementById('loading-overlay').classList.add('hidden');
                     alert("Data Berhasil Disimpan Lokal & Terkirim ke Google Sheets!");
                     finalizeSave();
@@ -744,7 +754,7 @@
             renderListTable(document.getElementById('search-input').value);
         }
 
-        // --- 6. Print Logic ---
+        // --- 6. Print Logic (UPDATED MULTI-ITEM) ---
         function loadPrintView(id) {
             const record = bdvDatabase.find(x => x.id === id);
             if(!record) return;
@@ -782,24 +792,32 @@
                 tbody.appendChild(tr);
             }
 
-            // === POPULATE SECTION 2 (TANDA TERIMA) ===
+            // === POPULATE SECTION 2 (TANDA TERIMA - MULTI ITEM FIX) ===
             document.getElementById('print-copy-no-bdv').innerText = record.id;
             document.getElementById('print-copy-date').innerText = record.date;
             document.getElementById('print-copy-terbilang').innerText = terbilangStr;
             document.getElementById('print-copy-total').innerText = totalStr;
             
-            let copyDesc = "Pembayaran kepada " + record.paidTo;
-            if(record.details.length > 0) {
-                 copyDesc += " (" + record.details[0].desc;
-                 if(record.details.length > 1) copyDesc += ", dkk";
-                 copyDesc += ")";
-            }
-            document.getElementById('print-copy-desc').innerText = copyDesc;
+            // Build Multi-Line List for Receipt Description
+            // Format: [Code] [Desc] ....... [Rp Amount]
+            let copyDescHtml = '<table class="w-full text-xs border-collapse">';
+            record.details.forEach(det => {
+                copyDescHtml += `
+                    <tr>
+                        <td class="align-top pr-2 font-mono text-[10px] pt-1" style="width: 40px">${det.code}</td>
+                        <td class="align-top pt-1">${det.desc}</td>
+                        <td class="align-top text-right pt-1 font-mono" style="width: 100px">Rp ${formatRupiah(det.amount)}</td>
+                    </tr>
+                `;
+            });
+            copyDescHtml += '</table>';
+            
+            document.getElementById('print-copy-desc-container').innerHTML = copyDescHtml;
 
             switchTab('print');
         }
 
-        // --- 7. Dashboard Logic (UPDATED WITH FILTER) ---
+        // --- 7. Dashboard Logic (WITH FILTER) ---
         let expenseChart = null;
 
         function updateDashboard() {
@@ -811,10 +829,7 @@
             const filteredDocs = [];
 
             bdvDatabase.forEach(doc => {
-                // Filter Logic: Check if date starts with YYYY-MM
-                if (filterValue && !doc.date.startsWith(filterValue)) {
-                    return; // Skip if date doesn't match
-                }
+                if (filterValue && !doc.date.startsWith(filterValue)) return;
 
                 filteredDocs.push(doc);
                 docCount++;
@@ -825,12 +840,10 @@
                 });
             });
 
-            // Update Stats UI
             document.getElementById('stat-total-amount').innerText = formatRupiah(totalAmount);
             document.getElementById('stat-total-docs').innerText = docCount;
             document.getElementById('stat-avg-amount').innerText = docCount ? formatRupiah(totalAmount / docCount) : "Rp 0";
 
-            // Update List (Show top 5 of filtered results, newest first)
             const list = document.getElementById('recent-activity-list');
             list.innerHTML = '';
             
@@ -850,7 +863,6 @@
                 });
             }
 
-            // Update Chart
             const ctx = document.getElementById('expenseChart').getContext('2d');
             if(expenseChart) expenseChart.destroy();
             expenseChart = new Chart(ctx, {
@@ -874,13 +886,6 @@
 
         window.onload = function() {
             initForm();
-            
-            // Set Default Month to Current Month
-            const today = new Date();
-            const yyyy = today.getFullYear();
-            const mm = String(today.getMonth() + 1).padStart(2, '0');
-            document.getElementById('dashboard-filter-month').value = `${yyyy}-${mm}`;
-
             updateDashboard();
             switchTab('dashboard');
         };
