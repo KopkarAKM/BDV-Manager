@@ -302,7 +302,7 @@
 
     <script>
         // CONFIG
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbznZjY5kvBXsf7AzUbc5v7Yz23TtLz6lSGYcHHOfuPoRgbKf90qYswRWVZ0w07AxZrT-w/exec'; 
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw5vngrzgb1vB33UIjv8kNy6OTsuZbVC5z4eL-CMG6DJ7HBXvY_NFHc03nqTs3hj1mm1Q/exec'; 
 
         // STATE
         let db = [];
@@ -327,7 +327,7 @@
                 document.getElementById('connection-status').classList.replace('bg-yellow-500','bg-green-500');
                 document.getElementById('connection-text').innerText = "Tersinkron";
                 renderTable();
-                updateDash();
+                updateDashboard();
             })
             .catch(e => {
                 document.getElementById('loading-overlay').classList.add('hidden');
@@ -349,7 +349,7 @@
 
             if(t === 'print') switchDoc('voucher'); 
             if(t === 'list') renderTable();
-            if(t === 'dashboard') updateDash();
+            if(t === 'dashboard') updateDashboard();
         }
 
         function switchDoc(type) {
